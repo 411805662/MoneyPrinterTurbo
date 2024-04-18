@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any, Optional
 
@@ -28,10 +30,18 @@ class VideoAspect(str, Enum):
         return 1080, 1920
 
 
+class VideoParagraph:
+    text = ""
+    end_time: int = 0
+    duration: float = 0
+
+
 class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    size: Optional[str] =""
+    description: Optional[str] = ""
 
 
 # VoiceNames = [
@@ -90,9 +100,10 @@ class VideoParams(BaseModel):
     video_subject: str
     video_script: str = ""  # 用于生成视频的脚本
     video_terms: Optional[str | list] = None  # 用于生成视频的关键词
+    video_lines: Optional[str] = None         # 每一句脚本，用于生成视频搜索关键字
     video_aspect: Optional[VideoAspect] = VideoAspect.portrait.value
-    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
-    video_clip_duration: Optional[int] = 5
+    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.sequential.value
+    video_clip_duration: Optional[int] = 15
     video_count: Optional[int] = 1
 
     video_language: Optional[str] = ""  # auto detect
@@ -105,13 +116,13 @@ class VideoParams(BaseModel):
 
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = "bottom"  # top, bottom, center
-    font_name: Optional[str] = "STHeitiMedium.ttc"
-    text_fore_color: Optional[str] = "#FFFFFF"
+    font_name: Optional[str] = "新青年体.ttf"
+    text_fore_color: Optional[str] = "#B7AD39"
     text_background_color: Optional[str] = "transparent"
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
-    stroke_width: float = 1.5
+    stroke_width: float = 2
     n_threads: Optional[int] = 2
     paragraph_number: Optional[int] = 1
 

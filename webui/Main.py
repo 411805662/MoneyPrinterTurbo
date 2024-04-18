@@ -1,3 +1,5 @@
+import json
+import subprocess
 import sys
 import os
 import time
@@ -176,7 +178,7 @@ with st.expander(tr("Basic Settings"), expanded=False):
         #   qwen (通义千问)
         #   gemini
         #   ollama
-        llm_providers = ['OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI', "Cloudflare"]
+        llm_providers = ['local','OpenAI', 'Moonshot', 'Azure', 'Qwen', 'Gemini', 'Ollama', 'G4f', 'OneAPI', "Cloudflare"]
         saved_llm_provider = config.app.get("llm_provider", "OpenAI").lower()
         saved_llm_provider_index = 0
         for i, provider in enumerate(llm_providers):
@@ -247,23 +249,24 @@ with left_panel:
         if st.button(tr("Generate Video Script and Keywords"), key="auto_generate_script"):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(video_subject=params.video_subject, language=params.video_language)
-                terms = llm.generate_terms(params.video_subject, script)
+                terms = llm.generate_terms(params.video_subject, script, language=params.video_language)
                 st.session_state['video_script'] = script
-                st.session_state['video_terms'] = ", ".join(terms)
+                st.session_state['video_terms'] = "\n".join(terms)
 
         params.video_script = st.text_area(
             tr("Video Script"),
             value=st.session_state['video_script'],
             height=280
         )
+
         if st.button(tr("Generate Video Keywords"), key="auto_generate_terms"):
             if not params.video_script:
                 st.error(tr("Please Enter the Video Subject"))
                 st.stop()
 
             with st.spinner(tr("Generating Video Keywords")):
-                terms = llm.generate_terms(params.video_subject, params.video_script)
-                st.session_state['video_terms'] = ", ".join(terms)
+                terms = llm.generate_terms(params.video_subject, params.video_script,language=params.video_language)
+                st.session_state['video_terms'] = "\n".join(terms)
 
         params.video_terms = st.text_area(
             tr("Video Keywords"),
@@ -382,7 +385,7 @@ with right_panel:
 
         font_cols = st.columns([0.3, 0.7])
         with font_cols[0]:
-            saved_text_fore_color = config.ui.get("text_fore_color", "#FFFFFF")
+            saved_text_fore_color = config.ui.get("text_fore_color", "#B7AD39")#FFFFFF
             params.text_fore_color = st.color_picker(tr("Font Color"), saved_text_fore_color)
             config.ui['text_fore_color'] = params.text_fore_color
 
@@ -395,7 +398,7 @@ with right_panel:
         with stroke_cols[0]:
             params.stroke_color = st.color_picker(tr("Stroke Color"), "#000000")
         with stroke_cols[1]:
-            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 1.5)
+            params.stroke_width = st.slider(tr("Stroke Width"), 0.0, 10.0, 2.0)
 
 start_button = st.button(tr("Generate Video"), use_container_width=True, type="primary")
 if start_button:
@@ -406,7 +409,7 @@ if start_button:
         scroll_to_bottom()
         st.stop()
 
-    if llm_provider != 'g4f' and not config.app.get(f"{llm_provider}_api_key", ""):
+    if llm_provider != 'g4f' and llm_provider != 'local' and not config.app.get(f"{llm_provider}_api_key", ""):
         st.error(tr("Please Enter the LLM API Key"))
         scroll_to_bottom()
         st.stop()
@@ -434,6 +437,17 @@ if start_button:
     scroll_to_bottom()
 
     result = tm.start(task_id=task_id, params=params)
+    if result:
+        video_files = result.get("videos", [])
+        st.success(tr("Video Generation Completed"))
+        try:
+            if video_files:
+                # center the video player
+                player_cols = st.columns(len(video_files) * 2 + 1)
+                for i, url in enumerate(video_files):
+                    player_cols[i * 2 + 1].video(url)
+        except Exception as e:
+            pass
 
     video_files = result.get("videos", [])
     st.success(tr("Video Generation Completed"))

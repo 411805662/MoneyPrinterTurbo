@@ -7,9 +7,10 @@ from loguru import logger
 
 from app.config import config
 from app.models import const
-from app.models.schema import VideoParams, VideoConcatMode
+from app.models.schema import VideoParams, VideoConcatMode, VideoParagraph
 from app.services import llm, material, voice, video, subtitle
 from app.services import state as sm
+from app.services.llm import generate_terms_baidu
 from app.utils import utils
 
 
@@ -30,12 +31,14 @@ def start(task_id, params: VideoParams):
     logger.info(f"start task: {task_id}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
+
     video_subject = params.video_subject
     voice_name = voice.parse_voice_name(params.voice_name)
     paragraph_number = params.paragraph_number
     n_threads = params.n_threads
     max_clip_duration = params.video_clip_duration
 
+    # step 0, generate video script
     logger.info("\n\n## generating video script")
     video_script = params.video_script.strip()
     if not video_script:
@@ -46,32 +49,7 @@ def start(task_id, params: VideoParams):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=10)
 
-    logger.info("\n\n## generating video terms")
-    video_terms = params.video_terms
-    if not video_terms:
-        video_terms = llm.generate_terms(video_subject=video_subject, video_script=video_script, amount=5)
-    else:
-        if isinstance(video_terms, str):
-            video_terms = [term.strip() for term in re.split(r'[,，]', video_terms)]
-        elif isinstance(video_terms, list):
-            video_terms = [term.strip() for term in video_terms]
-        else:
-            raise ValueError("video_terms must be a string or a list of strings.")
-
-        logger.debug(f"video terms: {utils.to_json(video_terms)}")
-
-    script_file = path.join(utils.task_dir(task_id), f"script.json")
-    script_data = {
-        "script": video_script,
-        "search_terms": video_terms,
-        "params": params,
-    }
-
-    with open(script_file, "w", encoding="utf-8") as f:
-        f.write(utils.to_json(script_data))
-
-    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
-
+    # step 1, generate audio
     logger.info("\n\n## generating audio")
     audio_file = path.join(utils.task_dir(task_id), f"audio.mp3")
     sub_maker = voice.tts(text=video_script, voice_name=voice_name, voice_file=audio_file)
@@ -86,20 +64,22 @@ def start(task_id, params: VideoParams):
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=30)
 
+    # step 2, generate subtitle
     subtitle_path = ""
+    sub_titles = []
     if params.subtitle_enabled:
         subtitle_path = path.join(utils.task_dir(task_id), f"subtitle.srt")
         subtitle_provider = config.app.get("subtitle_provider", "").strip().lower()
         logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
         subtitle_fallback = False
         if subtitle_provider == "edge":
-            voice.create_subtitle(text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path)
+            sub_titles = voice.create_subtitle(text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path)
             if not os.path.exists(subtitle_path):
                 subtitle_fallback = True
                 logger.warning("subtitle file not found, fallback to whisper")
 
         if subtitle_provider == "whisper" or subtitle_fallback:
-            subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+            sub_titles = subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
             logger.info("\n\n## correcting subtitle")
             subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
@@ -109,10 +89,57 @@ def start(task_id, params: VideoParams):
             subtitle_path = ""
 
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=40)
+    logger.info(f"\n\n## generating sub_titles: {sub_titles}")
 
+    # step 3, generate video terms
+    logger.info("\n\n## generating video terms ")
+    video_terms = params.video_terms
+    if not video_terms:
+        video_terms = llm.generate_terms(video_subject=video_subject, video_script=video_script, amount=5,sub_titles=sub_titles,language=params.video_language)
+    else:
+        if isinstance(video_terms, str):
+            video_terms = [term.strip() for term in re.split(r'[\n]', video_terms)]
+        elif isinstance(video_terms, list):
+            video_terms = [term.strip() for term in video_terms]
+        else:
+            raise ValueError("video_terms must be a string or a list of strings.")
+
+        logger.debug(f"video terms: {utils.to_json(video_terms)}")
+
+    script_file = path.join(utils.task_dir(task_id), f"script.json")
+    script_lines = generate_terms_baidu(video_subject, video_script, 5)
+    paragraph = []
+    for sub_title in sub_titles:
+        for i, line in enumerate(script_lines):
+            if line.replace("）","").endswith(sub_title['msg']):
+                item = VideoParagraph()
+                item.text = video_terms[i]
+                item.end_time = int(sub_title["end_time"])
+                if len(paragraph) > 0:
+                    item.duration = int((item.end_time - paragraph[-1].end_time)/10000000)
+                else:
+                    item.duration = item.end_time
+                paragraph.append(item)
+                logger.debug(
+                    f"paragraph:{i}, {item.text} ,end_time: {item.end_time}, duration: {item.duration}")
+
+    logger.debug(f"video_terms: {video_terms} {type(video_terms)}")
+
+    script_data = {
+        "script": video_script,
+        "search_terms": video_terms,
+        "params": params,
+    }
+
+    with open(script_file, "w", encoding="utf-8") as f:
+        f.write(utils.to_json(script_data))
+
+    sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=20)
+
+    # step 4, download videos
     logger.info("\n\n## downloading videos")
     downloaded_videos = material.download_videos(task_id=task_id,
-                                                 search_terms=video_terms,
+                                                 search_terms=paragraph,
                                                  video_aspect=params.video_aspect,
                                                  video_contact_mode=params.video_concat_mode,
                                                  audio_duration=audio_duration * params.video_count,

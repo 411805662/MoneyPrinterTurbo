@@ -110,6 +110,7 @@ def create(audio_file, subtitle_file: str = ""):
     for subtitle in subtitles:
         text = subtitle.get("msg")
         if text:
+            subtitle.update({"idx": idx})
             lines.append(utils.text_to_srt(idx, text, subtitle.get("start_time"), subtitle.get("end_time")))
             idx += 1
 
@@ -117,7 +118,7 @@ def create(audio_file, subtitle_file: str = ""):
     with open(subtitle_file, "w", encoding="utf-8") as f:
         f.write(sub)
     logger.info(f"subtitle file created: {subtitle_file}")
-
+    return subtitles
 
 def file_to_subtitles(filename):
     times_texts = []

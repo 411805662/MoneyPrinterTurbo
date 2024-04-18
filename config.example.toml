@@ -7,7 +7,6 @@ listen_port = 8502
     # You can use multiple keys to avoid rate limits.
     # For example: pexels_api_keys = ["123adsf4567adf89","abd1321cd13efgfdfhi"]
     # 特别注意格式，Key 用英文双引号括起来，多个Key用逗号隔开
-    pexels_api_keys = []
 
     # 如果你没有 OPENAI API Key，可以使用 g4f 代替，或者使用国内的 Moonshot API
     # If you don't have an OPENAI API Key, you can use g4f instead
@@ -20,7 +19,8 @@ listen_port = 8502
     #   azure
     #   qwen (通义千问)
     #   gemini
-    llm_provider="openai"
+    #   local
+    llm_provider="local"
 
     ########## Ollama Settings
     # No need to set it unless you want to use your own proxy
@@ -30,10 +30,17 @@ listen_port = 8502
 
     ########## OpenAI API Key
     # Get your API key at https://platform.openai.com/api-keys
-    openai_api_key = ""
+    openai_api_key = "sk-sQTsJHLSPH9IS7JczgreeUnghVzb7hpZylYWompjFNwG8DPE"
     # No need to set it unless you want to use your own proxy
-    openai_base_url = ""
+    openai_base_url="https://api.chatanywhere.cn/v1"
     # Check your available models at https://platform.openai.com/account/limits
+
+    # For example: pexels_api_keys = ["123456789","abcdefghi"]
+    pexels_api_keys = ["sTZEVBNnL0SbU7B28Bx9drrXbE3ZO4XzZ0UpZRjUPRy2F2jCJPoxjpUF"]
+
+    # OpenAI API Key
+    # Visit https://openai.com/api/ for details on obtaining an API key.
+
     openai_model_name = "gpt-4-turbo-preview"
 
     ########## Moonshot API Key

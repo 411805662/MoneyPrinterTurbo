@@ -1,20 +1,24 @@
 import logging
 import re
 import json
+import requests
 from typing import List
 from loguru import logger
 from openai import OpenAI
 from openai import AzureOpenAI
 from openai.types.chat import ChatCompletion
-
 from app.config import config
+from app.utils import utils
 
 
-def _generate_response(prompt: str) -> str:
+def _generate_response(prompt: str, requests=None) -> str:
     content = ""
     llm_provider = config.app.get("llm_provider", "openai")
     logger.info(f"llm provider: {llm_provider}")
-    if llm_provider == "g4f":
+    if llm_provider == "local":
+        response = requests.get(f"http://localhost:5001/chat", params={'q': prompt})
+        return response.text
+    elif llm_provider == "g4f":
         model_name = config.app.get("g4f_model_name", "")
         if not model_name:
             model_name = "gpt-3.5-turbo-16k-0613"
@@ -214,7 +218,7 @@ Generate a script for a video, depending on the subject of the video.
     final_script = ""
     logger.info(f"subject: {video_subject}")
     logger.debug(f"prompt: \n{prompt}")
-    response = _generate_response(prompt=prompt)
+    response = _generate_response(prompt=prompt,requests=requests)
 
     # Return the generated script
     if response:
@@ -244,37 +248,71 @@ Generate a script for a video, depending on the subject of the video.
     logger.success(f"completed: \n{final_script}")
     return final_script
 
+def generate_terms_baidu(video_subject: str, video_script: str, amount: int = 5, sub_titles: list = None) -> List[str]:
+    script_lines = utils.split_string_by_punctuations(video_script,False)
+    logger.info(f"generate_terms_baidu: {script_lines}")
+    return script_lines
 
-def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
+    # if sub_titles:
+    #     return [item['msg'] for item in sub_titles]
+    #
+    # import jieba.analyse
+    # sentence = video_script.replace("。\n","\n")
+    # sentences = re.split(r'。|\n', sentence.strip())
+    # search_result = []
+    # for item in sentences:
+    #     if len(item) == 0:
+    #         continue
+    #     keyword = "，".join(jieba.analyse.extract_tags(item, topK=2))
+    #     if keyword is None or len(keyword) == 0:
+    #         search_result.append(item)
+    #     else:
+    #         search_result.append(keyword)
+    #     logger.success(f"text:{item},keyword:{keyword}")
+    # return search_result
+
+def generate_terms(video_subject: str, video_script: str, amount: int = 5, sub_titles: list = None,language="zh-CN"):
+    script_lines = generate_terms_baidu(video_subject, video_script, amount)
+    # return script_lines
+
+    count = len(script_lines) if len(script_lines) > 0 else amount
+    content = "\n".join(script_lines)
+
+    use_language = "Chinese"
+    not_language = "English"
+    if language.lower() == "en-us":
+        use_language = "English"
+        not_language = "Chinese"
+
     prompt = f"""
 # Role: Video Search Terms Generator
 
 ## Goals:
-Generate {amount} search terms for stock videos, depending on the subject of a video.
+Generate {count} search terms for stock videos, depending on the subject of a video.
 
 ## Constrains:
 1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
+2. each search term should consist of 2-3 words, always add the main subject of the video.
 3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
 4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+5. reply with {use_language} search terms only.
 
 ## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
+["main subject,search term 1", "main subject,search term 2", "main subject,search term 3","main subject,search term 4","main subject,search term 5"]
 
 ## Context:
 ### Video Subject
 {video_subject}
 
 ### Video Script
-{video_script}
+{content}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+Please note that you must use {use_language} for generating video search terms; {not_language} is not accepted.
 """.strip()
 
-    logger.info(f"subject: {video_subject}")
+    logger.info(f"subject: {video_subject},{language}")
     logger.debug(f"prompt: \n{prompt}")
-    response = _generate_response(prompt)
+    response = _generate_response(prompt,requests)
     search_terms = []
 
     try:

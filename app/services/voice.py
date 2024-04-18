@@ -1050,6 +1050,7 @@ def azure_tts_v1(text: str, voice_name: str, voice_file: str) -> [SubMaker, None
                             file.write(chunk["data"])
                         elif chunk["type"] == "WordBoundary":
                             sub_maker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+                            logger.info(f"sub_maker, create_sub: {chunk}")
                 return sub_maker
 
             sub_maker = asyncio.run(_do())
@@ -1177,6 +1178,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     start_time = -1.0
     sub_items = []
     sub_index = 0
+    sub_titles =[]
 
     script_lines = utils.split_string_by_punctuations(text)
 
@@ -1219,6 +1221,12 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
                     end_time=end_time,
                     sub_text=sub_text,
                 )
+                sub_titles.append({
+                    "idx":sub_index,
+                    "msg": sub_text,
+                    "start_time": start_time,
+                    "end_time": end_time
+                })
                 sub_items.append(line)
                 start_time = -1.0
                 sub_line = ""
@@ -1238,6 +1246,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
 
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
+    return sub_titles
 
 
 def get_audio_duration(sub_maker: submaker.SubMaker):

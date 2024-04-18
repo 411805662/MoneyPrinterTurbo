@@ -160,7 +160,7 @@ def str_contains_punctuation(word):
     return False
 
 
-def split_string_by_punctuations(s):
+def split_string_by_punctuations(s,contains_comma=True):
     result = []
     txt = ""
 
@@ -183,12 +183,13 @@ def split_string_by_punctuations(s):
             txt += char
             continue
 
-        if char not in const.PUNCTUATIONS:
+    special_list = const.PUNCTUATIONS if contains_comma else const.PUNCTUATIONS2
+    for char in s:
+        if char not in special_list:
             txt += char
         else:
             result.append(txt.strip())
             txt = ""
-    result.append(txt.strip())
     # filter empty string
     result = list(filter(None, result))
     return result
