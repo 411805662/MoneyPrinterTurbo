@@ -3,7 +3,7 @@
 
 <small>[Compare with first commit](https://github.com/KevinZhang19870314/MoneyPrinterTurbo/compare/d4f7b53b841e65da658e3d77822f9923286ddab6...1.1.2)</small>
 
-### Features
+### Features 
 
 - add support for maximum concurrency of /api/v1/videos ([abe12ab](https://github.com/KevinZhang19870314/MoneyPrinterTurbo/commit/abe12abd7b78997651468ad5dd656985066f8bd9) by kevin.zhang).
 - add task deletion endpoint ([d57434e](https://github.com/KevinZhang19870314/MoneyPrinterTurbo/commit/d57434e0d31c8195dbcd3c86ff2763af96736cdf) by kevin.zhang).
